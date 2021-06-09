@@ -30,9 +30,13 @@ public class TodoController {
         t.setTodo(todo);
         t.setIs_todo_complete(is_complete);
         Todo todoFromDB = todoRepository.saveAndFlush(t);
+
+        //now save the data to the redis server
         System.out.println("starting on saving the item in redis");
         template.opsForHash().put(REDIS_CACHE_HASH, todoFromDB.getId(), todoFromDB);
+//        redisTemplate.expire("UniqueKey",60, TimeUnit.SECONDS);
         System.out.println("end saving the item in redis");
+
         return t;
     }
 
