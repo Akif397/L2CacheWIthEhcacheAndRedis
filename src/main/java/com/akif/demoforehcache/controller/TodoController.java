@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-@EnableCaching
+
 @RestController
 @RequestMapping("item")
 public class TodoController {
@@ -24,6 +24,7 @@ public class TodoController {
     RedisTemplate template;
     @Autowired
     CacheManager cacheManager;
+
     private final String REDIS_CACHE_HASH = "items";
 
     @PostMapping
@@ -68,27 +69,41 @@ public class TodoController {
 
     @GetMapping
     public List<Todo> findAllFromRedis() {
-        Todo todo = null;
-        Map<String, Todo> redisHashesMap = template.opsForHash().entries(REDIS_CACHE_HASH);
-
-        if (redisHashesMap.size() > 0) {
-            System.out.println("The items remain in redis");
-            List<Todo> todoListFromRedis = new LinkedList<>();
-            for (Todo todoFromRedis : redisHashesMap.values()) {
-                todoListFromRedis.add(todoFromRedis);
-            }
-            return todoListFromRedis;
-        } else {
-            System.out.println("the items need to fetch from Database");
-            List<Todo> todosFromDB = todoRepository.findAll();
-            for (int i = 0; i < todosFromDB.size(); i++) {
-                System.out.println("starting on saving the item in redis");
-                template.opsForHash().put(REDIS_CACHE_HASH, todosFromDB.get(i).getId(),
-                        todosFromDB.get(i));
-                template.expire(REDIS_CACHE_HASH, 60, TimeUnit.SECONDS);
-            }
-            return todosFromDB;
+        List<Todo> todosFromDB = todoRepository.findAll();
+        for (int i = 0; i < todosFromDB.size(); i++) {
+            System.out.println("starting on saving the item in redis");
+            template.opsForHash().put(REDIS_CACHE_HASH, todosFromDB.get(i).getId(),
+                    todosFromDB.get(i));
+            template.expire(REDIS_CACHE_HASH, 60, TimeUnit.SECONDS);
         }
+        return todosFromDB;
+    }
+
+    @PutMapping("update")
+    public Todo updateItem(@RequestBody Todo updatedTodoFromUser) {
+        Todo todo = null;
+        boolean is_todo_exists_in_redis = false;
+        Map<String, Todo> redisHashesMap = template.opsForHash().entries(REDIS_CACHE_HASH);
+        if (redisHashesMap.size() > 0) {
+            for (Todo todoFromRedis : redisHashesMap.values()) {
+                if (todoFromRedis.getTodo().equals(updatedTodoFromUser.getTodo())) {
+                    todo = todoFromRedis;
+                    todo.setIs_todo_complete(updatedTodoFromUser.isIs_todo_complete());
+                    template.opsForHash().put(REDIS_CACHE_HASH, todo.getId(), todo);
+                    template.expire(REDIS_CACHE_HASH, 60, TimeUnit.SECONDS);
+                    is_todo_exists_in_redis = true;
+                    break;
+                } else{
+                    is_todo_exists_in_redis = false;
+                }
+            }
+        } else if (redisHashesMap == null || !is_todo_exists_in_redis){
+            todo = todoRepository.findByTodo(updatedTodoFromUser.getTodo());
+            todo.setIs_todo_complete(updatedTodoFromUser.isIs_todo_complete());
+            template.opsForHash().put(REDIS_CACHE_HASH, todo.getId(), todo);
+            template.expire(REDIS_CACHE_HASH, 60, TimeUnit.SECONDS);
+        }
+        return  todo;
     }
 
 }
