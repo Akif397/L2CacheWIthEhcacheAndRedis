@@ -12,6 +12,7 @@ import java.time.LocalTime;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class TodoScheduler {
@@ -43,6 +44,7 @@ public class TodoScheduler {
                 for (int i = 0; i < updatedTodoFromDB.size(); i++) {
                     template.opsForHash().put(REDIS_CACHE_HASH, updatedTodoFromDB.get(i).getId(),
                             updatedTodoFromDB.get(i));
+                    template.expire(REDIS_CACHE_HASH, 60, TimeUnit.SECONDS);
                 }
                 System.out.println("working on update Redis : " + LocalTime.now());
             } else {
